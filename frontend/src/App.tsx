@@ -36,7 +36,6 @@ export function App() {
   const textZoneRef = useRef<HTMLDivElement | null>(null);
   const controlsRef = useRef<HTMLDivElement | null>(null);
   const selectionFinalizeTimerRef = useRef<number | null>(null);
-  const pointerActiveRef = useRef(false);
 
   const hasSelection = selectedText.length > 0;
   const canPlay = hasSelection && playbackState !== "loading";
@@ -164,10 +163,6 @@ export function App() {
 
   useEffect(() => {
     const commitSelectionIfReady = () => {
-      if (pointerActiveRef.current) {
-        return;
-      }
-
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) {
         return;
@@ -186,44 +181,32 @@ export function App() {
       setSelectedText((prev) => (prev === text ? prev : text));
     };
 
-    const scheduleFinalize = () => {
+    const scheduleFinalize = (delayMs = 140) => {
       if (selectionFinalizeTimerRef.current !== null) {
         window.clearTimeout(selectionFinalizeTimerRef.current);
       }
 
       selectionFinalizeTimerRef.current = window.setTimeout(() => {
         commitSelectionIfReady();
-      }, 120);
+      }, delayMs);
     };
 
-    const onPointerDown = () => {
-      pointerActiveRef.current = true;
-    };
+    const onSelectionChange = () => scheduleFinalize(140);
+    const onFinalizeGesture = () => scheduleFinalize(30);
 
-    const onPointerUp = () => {
-      pointerActiveRef.current = false;
-      scheduleFinalize();
-    };
-
-    document.addEventListener("selectionchange", scheduleFinalize);
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("touchstart", onPointerDown);
-    document.addEventListener("pointerup", onPointerUp);
-    document.addEventListener("mouseup", onPointerUp);
-    document.addEventListener("touchend", onPointerUp);
+    document.addEventListener("selectionchange", onSelectionChange);
+    document.addEventListener("pointerup", onFinalizeGesture);
+    document.addEventListener("mouseup", onFinalizeGesture);
+    document.addEventListener("touchend", onFinalizeGesture);
 
     return () => {
       if (selectionFinalizeTimerRef.current !== null) {
         window.clearTimeout(selectionFinalizeTimerRef.current);
       }
-      document.removeEventListener("selectionchange", scheduleFinalize);
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("touchstart", onPointerDown);
-      document.removeEventListener("pointerup", onPointerUp);
-      document.removeEventListener("mouseup", onPointerUp);
-      document.removeEventListener("touchend", onPointerUp);
+      document.removeEventListener("selectionchange", onSelectionChange);
+      document.removeEventListener("pointerup", onFinalizeGesture);
+      document.removeEventListener("mouseup", onFinalizeGesture);
+      document.removeEventListener("touchend", onFinalizeGesture);
     };
   }, []);
 
