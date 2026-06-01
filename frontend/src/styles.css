@@ -93,6 +93,23 @@ h1 {
   margin: 0.8rem 0 1.4rem;
 }
 
+.subheader {
+  margin: 0.75rem 0 0.35rem;
+  color: var(--muted);
+}
+
+.subheader-link {
+  color: #6ea6ff;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(110, 166, 255, 0.45);
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.subheader-link:hover {
+  color: #8bb8ff;
+  border-color: rgba(139, 184, 255, 0.75);
+}
+
 .controls {
   display: flex;
   gap: 0.8rem;

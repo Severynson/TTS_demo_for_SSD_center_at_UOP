@@ -5,7 +5,7 @@ type PlaybackState = "idle" | "loading" | "playing" | "paused";
 
 const TEXT_BLOCKS = [
   "This demo was prepared for the SSD Center at the University of the Pacific to explore a modern text-to-speech option. ElevenLabs could be a promising complement to the current Kurzweil workflow, especially for more natural voice quality and flexible scaling.",
-  "Pricing snapshot:",
+  "Pricing options:",
   "•  Pay As You Go API: around $0.05 per 1,000 characters for Flash/Turbo models, and around $0.10 per 1,000 characters for Multilingual v2/v3 models.",
   "•  Scale plan: $299/month, includes 1.8M credits (about 30 hours of TTS), plus team collaboration and professional voice-cloning features.",
   "•  Business plan: $990/month, includes 6M credits (about 100 hours of TTS), plus low-latency TTS and expanded business features.",
@@ -321,6 +321,18 @@ export function App() {
         </div>
         <p className="eyebrow">ElevenLabs • Exploration page for SSD Center</p>
         <h1>Text-to-Speech Demo for SSD Center</h1>
+        <p className="subheader">
+          For full details, explore{" "}
+          <a
+            href="https://elevenlabs.io/text-to-speech"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="subheader-link"
+          >
+            ElevenLabs Text to Speech options
+          </a>
+          .
+        </p>
         <p className="subtitle">
           Select text below. Playback starts automatically.
         </p>
