@@ -195,7 +195,7 @@ export function App() {
       barRadius: 8,
       height: 82,
       normalize: true,
-      interact: false,
+      interact: true,
     });
 
     ws.on("finish", () => {
@@ -228,9 +228,17 @@ export function App() {
   useEffect(() => {
     const onDocMouseDown = (event: MouseEvent) => {
       const target = event.target as Node;
-      const clickedText = textZoneRef.current?.contains(target);
-      const clickedControls = controlsRef.current?.contains(target);
-      if (!clickedText && !clickedControls) {
+      const path = event.composedPath();
+      const clickedText =
+        !!textZoneRef.current?.contains(target) ||
+        (!!textZoneRef.current && path.includes(textZoneRef.current));
+      const clickedControls =
+        !!controlsRef.current?.contains(target) ||
+        (!!controlsRef.current && path.includes(controlsRef.current));
+      const clickedWaveform =
+        !!waveContainerRef.current?.contains(target) ||
+        (!!waveContainerRef.current && path.includes(waveContainerRef.current));
+      if (!clickedText && !clickedControls && !clickedWaveform) {
         requestTokenRef.current += 1;
         stopAudio(true);
       }
