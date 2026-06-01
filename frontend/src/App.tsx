@@ -14,30 +14,15 @@ const TEXT_BLOCKS = [
 ];
 
 export function App() {
-  const lines = useMemo(() => {
-    let globalIndex = 0;
-    return TEXT_BLOCKS.map((line) => {
-      const isBullet = line.startsWith("• ");
-      const words = line
-        .replace(/^•\s*/, "")
-        .split(/\s+/)
-        .filter(Boolean)
-        .map((word) => {
-          const token = { text: word, index: globalIndex };
-          globalIndex += 1;
-          return token;
-        });
-      return { isBullet, words };
-    });
-  }, []);
-  const words = useMemo(
-    () => lines.flatMap((line) => line.words.map((word) => word.text)),
-    [lines],
+  const lines = useMemo(
+    () =>
+      TEXT_BLOCKS.map((line) => ({
+        isBullet: line.startsWith("• "),
+        text: line.replace(/^•\s*/, ""),
+      })),
+    [],
   );
-  const [selectionStart, setSelectionStart] = useState<number | null>(null);
-  const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
-  const [dragStart, setDragStart] = useState<number | null>(null);
-  const [dragEnd, setDragEnd] = useState<number | null>(null);
+  const [selectedText, setSelectedText] = useState<string>("");
   const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
   const [error, setError] = useState<string>("");
   const [speed, setSpeed] = useState<number>(1);
@@ -50,23 +35,7 @@ export function App() {
   const requestTokenRef = useRef(0);
   const textZoneRef = useRef<HTMLDivElement | null>(null);
   const controlsRef = useRef<HTMLDivElement | null>(null);
-
-  const range = useMemo(() => {
-    if (selectionStart === null || selectionEnd === null) {
-      return null;
-    }
-    return {
-      start: Math.min(selectionStart, selectionEnd),
-      end: Math.max(selectionStart, selectionEnd),
-    };
-  }, [selectionStart, selectionEnd]);
-
-  const selectedText = useMemo(() => {
-    if (!range) {
-      return "";
-    }
-    return words.slice(range.start, range.end + 1).join(" ");
-  }, [range, words]);
+  const selectionFinalizeTimerRef = useRef<number | null>(null);
 
   const hasSelection = selectedText.length > 0;
   const canPlay = hasSelection && playbackState !== "loading";
@@ -84,10 +53,8 @@ export function App() {
     }
     setPlaybackState("idle");
     if (clearSelection) {
-      setSelectionStart(null);
-      setSelectionEnd(null);
-      setDragStart(null);
-      setDragEnd(null);
+      setSelectedText("");
+      window.getSelection()?.removeAllRanges();
     }
   };
 
@@ -177,28 +144,6 @@ export function App() {
     }
   };
 
-  const onWordMouseDown = (index: number) => {
-    setDragStart(index);
-    setDragEnd(index);
-  };
-
-  const onWordMouseEnter = (index: number) => {
-    if (dragStart !== null) {
-      setDragEnd(index);
-    }
-  };
-
-  const onMouseUp = () => {
-    if (dragStart === null || dragEnd === null) {
-      return;
-    }
-
-    setSelectionStart(dragStart);
-    setSelectionEnd(dragEnd);
-    setDragStart(null);
-    setDragEnd(null);
-  };
-
   useEffect(() => {
     if (!selectedText) {
       return;
@@ -215,6 +160,47 @@ export function App() {
       wavesurferRef.current.setPlaybackRate(manualPlaybackFactorRef.current);
     }
   }, [speed]);
+
+  useEffect(() => {
+    const finalizeSelection = () => {
+      if (selectionFinalizeTimerRef.current !== null) {
+        window.clearTimeout(selectionFinalizeTimerRef.current);
+      }
+
+      // Let native selection settle after finger/mouse release.
+      selectionFinalizeTimerRef.current = window.setTimeout(() => {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+          return;
+        }
+
+        const text = selection.toString().trim();
+        if (!text) {
+          return;
+        }
+
+        const range = selection.getRangeAt(0);
+        if (!textZoneRef.current?.contains(range.commonAncestorContainer)) {
+          return;
+        }
+
+        setSelectedText((prev) => (prev === text ? prev : text));
+      }, 80);
+    };
+
+    document.addEventListener("pointerup", finalizeSelection);
+    document.addEventListener("mouseup", finalizeSelection);
+    document.addEventListener("touchend", finalizeSelection);
+
+    return () => {
+      if (selectionFinalizeTimerRef.current !== null) {
+        window.clearTimeout(selectionFinalizeTimerRef.current);
+      }
+      document.removeEventListener("pointerup", finalizeSelection);
+      document.removeEventListener("mouseup", finalizeSelection);
+      document.removeEventListener("touchend", finalizeSelection);
+    };
+  }, []);
 
   useEffect(() => {
     if (!waveContainerRef.current) {
@@ -262,33 +248,6 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const onDocMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const path = event.composedPath();
-      const clickedText =
-        !!textZoneRef.current?.contains(target) ||
-        (!!textZoneRef.current && path.includes(textZoneRef.current));
-      const clickedControls =
-        !!controlsRef.current?.contains(target) ||
-        (!!controlsRef.current && path.includes(controlsRef.current));
-      const clickedWaveform =
-        !!waveContainerRef.current?.contains(target) ||
-        (!!waveContainerRef.current && path.includes(waveContainerRef.current));
-      if (!clickedText && !clickedControls && !clickedWaveform) {
-        requestTokenRef.current += 1;
-        stopAudio(true);
-      }
-    };
-
-    document.addEventListener("mousedown", onDocMouseDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocMouseDown);
-    };
-    // safe one-time setup
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
     return () => {
       requestTokenRef.current += 1;
       stopAudio(false);
@@ -296,9 +255,6 @@ export function App() {
     // safe cleanup only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const liveStart = dragStart ?? range?.start ?? -1;
-  const liveEnd = dragEnd ?? range?.end ?? -1;
 
   return (
     <main className="page">
@@ -313,7 +269,7 @@ export function App() {
           </div>
           <div className="brand-logo-panel">
             <img
-              src="/Eleven-labs-banner.png"
+              src="/eleven-labs-banner.png"
               alt="ElevenLabs banner"
               className="brand-logo"
             />
@@ -391,30 +347,14 @@ export function App() {
           />
         </div>
 
-        <div ref={textZoneRef} className="text-zone" onMouseUp={onMouseUp}>
+        <div ref={textZoneRef} className="text-zone">
           {lines.map((line, lineIndex) => (
             <p
               key={`line-${lineIndex}`}
               className={line.isBullet ? "text-line text-bullet" : "text-line"}
             >
               {line.isBullet && <span className="bullet-dot">•</span>}
-              {line.words.map((word) => {
-                const index = word.index;
-                const min = Math.min(liveStart, liveEnd);
-                const max = Math.max(liveStart, liveEnd);
-                const isSelected = min >= 0 && index >= min && index <= max;
-
-                return (
-                  <span
-                    key={`${lineIndex}-${index}-${word.text}`}
-                    className={`word ${isSelected ? "selected" : ""}`}
-                    onMouseDown={() => onWordMouseDown(index)}
-                    onMouseEnter={() => onWordMouseEnter(index)}
-                  >
-                    {word.text}{" "}
-                  </span>
-                );
-              })}
+              {line.text}
             </p>
           ))}
         </div>
