@@ -1,0 +1,348 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import WaveSurfer from "wavesurfer.js";
+
+type PlaybackState = "idle" | "loading" | "playing" | "paused";
+
+const DEMO_TEXT = `This demo was prepared for the SSD Center at the University of the Pacific to explore a modern text-to-speech option. ElevenLabs may be a practical complement to the current Kurzweil workflow, especially if you want more natural voices and flexible scaling over time.
+
+As a pricing reference, Pay As You Go API rates are around $0.05 per 1,000 characters for Flash and Turbo models, and around $0.10 per 1,000 characters for Multilingual v2/v3 models. The Scale plan is listed at $299 per month with 1.8 million credits, roughly 30 hours of TTS, plus collaboration features. The Business plan is listed at $990 per month with 6 million credits, around 100 hours of TTS, plus expanded low-latency and voice-cloning capabilities.
+
+Goal of this page is simple: select any part of this text, listen instantly, and evaluate whether this approach could be a promising option for SSD Center needs.`;
+
+export function App() {
+  const words = useMemo(() => DEMO_TEXT.split(/\s+/).filter(Boolean), []);
+  const [selectionStart, setSelectionStart] = useState<number | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
+  const [dragStart, setDragStart] = useState<number | null>(null);
+  const [dragEnd, setDragEnd] = useState<number | null>(null);
+  const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
+  const [error, setError] = useState<string>("");
+  const [speed, setSpeed] = useState<number>(1);
+
+  const wavesurferRef = useRef<WaveSurfer | null>(null);
+  const waveContainerRef = useRef<HTMLDivElement | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+  const requestTokenRef = useRef(0);
+  const textZoneRef = useRef<HTMLDivElement | null>(null);
+  const controlsRef = useRef<HTMLDivElement | null>(null);
+
+  const range = useMemo(() => {
+    if (selectionStart === null || selectionEnd === null) {
+      return null;
+    }
+    return {
+      start: Math.min(selectionStart, selectionEnd),
+      end: Math.max(selectionStart, selectionEnd),
+    };
+  }, [selectionStart, selectionEnd]);
+
+  const selectedText = useMemo(() => {
+    if (!range) {
+      return "";
+    }
+    return words.slice(range.start, range.end + 1).join(" ");
+  }, [range, words]);
+
+  const hasSelection = selectedText.length > 0;
+  const canPlay = hasSelection && playbackState !== "loading";
+  const canStop = playbackState !== "idle" || hasSelection;
+  const showWaveform = playbackState === "playing" || playbackState === "paused";
+
+  const stopAudio = (clearSelection: boolean) => {
+    if (wavesurferRef.current) {
+      wavesurferRef.current.stop();
+      wavesurferRef.current.empty();
+    }
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    setPlaybackState("idle");
+    if (clearSelection) {
+      setSelectionStart(null);
+      setSelectionEnd(null);
+      setDragStart(null);
+      setDragEnd(null);
+    }
+  };
+
+  const updateSpeed = (next: number) => {
+    const rounded = Number(next.toFixed(1));
+    const clamped = Math.min(2, Math.max(0.5, rounded));
+    setSpeed(clamped);
+    if (wavesurferRef.current) {
+      wavesurferRef.current.setPlaybackRate(clamped);
+    }
+  };
+
+  const synthesizeAndPlay = async (text: string) => {
+    const token = ++requestTokenRef.current;
+    stopAudio(false);
+    setError("");
+    setPlaybackState("loading");
+
+    try {
+      const response = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const blob = await response.blob();
+      if (token !== requestTokenRef.current) {
+        return;
+      }
+
+      if (!wavesurferRef.current) {
+        throw new Error("Wave renderer not initialized");
+      }
+
+      const objectUrl = URL.createObjectURL(blob);
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+      }
+      objectUrlRef.current = objectUrl;
+
+      await wavesurferRef.current.load(objectUrl);
+      if (token !== requestTokenRef.current) {
+        return;
+      }
+      wavesurferRef.current.setPlaybackRate(speed);
+      await wavesurferRef.current.play();
+
+      setPlaybackState("playing");
+    } catch (err) {
+      setPlaybackState("idle");
+      setError(err instanceof Error ? err.message : "TTS request failed");
+    }
+  };
+
+  const handlePlayPause = async () => {
+    if (!canPlay) {
+      return;
+    }
+
+    if (playbackState === "playing") {
+      wavesurferRef.current?.pause();
+      setPlaybackState("paused");
+      return;
+    }
+
+    if (playbackState === "paused" && wavesurferRef.current) {
+      await wavesurferRef.current.play();
+      setPlaybackState("playing");
+      return;
+    }
+
+    if (selectedText) {
+      await synthesizeAndPlay(selectedText);
+    }
+  };
+
+  const onWordMouseDown = (index: number) => {
+    setDragStart(index);
+    setDragEnd(index);
+  };
+
+  const onWordMouseEnter = (index: number) => {
+    if (dragStart !== null) {
+      setDragEnd(index);
+    }
+  };
+
+  const onMouseUp = () => {
+    if (dragStart === null || dragEnd === null) {
+      return;
+    }
+
+    setSelectionStart(dragStart);
+    setSelectionEnd(dragEnd);
+    setDragStart(null);
+    setDragEnd(null);
+  };
+
+  useEffect(() => {
+    if (!selectedText) {
+      return;
+    }
+    void synthesizeAndPlay(selectedText);
+    // selectedText change should retrigger synthesis
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedText]);
+
+  useEffect(() => {
+    if (wavesurferRef.current) {
+      wavesurferRef.current.setPlaybackRate(speed);
+    }
+  }, [speed]);
+
+  useEffect(() => {
+    if (!waveContainerRef.current) {
+      return;
+    }
+
+    const ws = WaveSurfer.create({
+      container: waveContainerRef.current,
+      waveColor: "#737373",
+      progressColor: "#f5f5f5",
+      cursorColor: "#ffffff",
+      barWidth: 2,
+      barGap: 2,
+      barRadius: 8,
+      height: 82,
+      normalize: true,
+      interact: false,
+    });
+
+    ws.on("finish", () => {
+      setPlaybackState("idle");
+    });
+
+    ws.on("pause", () => {
+      setPlaybackState((prev) => (prev === "idle" || prev === "loading" ? prev : "paused"));
+    });
+
+    ws.on("play", () => {
+      setPlaybackState("playing");
+    });
+
+    ws.setPlaybackRate(speed);
+    wavesurferRef.current = ws;
+
+    return () => {
+      ws.destroy();
+      wavesurferRef.current = null;
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    };
+    // initialize once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const onDocMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedText = textZoneRef.current?.contains(target);
+      const clickedControls = controlsRef.current?.contains(target);
+      if (!clickedText && !clickedControls) {
+        requestTokenRef.current += 1;
+        stopAudio(true);
+      }
+    };
+
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocMouseDown);
+    };
+    // safe one-time setup
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      requestTokenRef.current += 1;
+      stopAudio(false);
+    };
+    // safe cleanup only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const liveStart = dragStart ?? range?.start ?? -1;
+  const liveEnd = dragEnd ?? range?.end ?? -1;
+
+  return (
+    <main className="page">
+      <section className="hero-card">
+        <img
+          src="/Eleven-labs-banner.png"
+          alt="ElevenLabs banner"
+          className="logo"
+        />
+        <p className="eyebrow">ElevenLabs • Exploration page for SSD Center</p>
+        <h1>Text-to-Speech Demo for SSD Center</h1>
+        <p className="subtitle">
+          Select text below. Playback starts automatically.
+        </p>
+
+        <div className="controls" ref={controlsRef}>
+          <button
+            type="button"
+            onClick={() => void handlePlayPause()}
+            disabled={!canPlay}
+          >
+            {playbackState === "playing"
+              ? "❚❚ pause"
+              : playbackState === "loading"
+                ? "..."
+                : "► play"}
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={!canStop}
+            onClick={() => {
+              requestTokenRef.current += 1;
+              stopAudio(true);
+            }}
+          >
+            ◼ stop
+          </button>
+        </div>
+        <div className="speed-controls">
+          <span>speed: {speed.toFixed(1)}</span>
+          <button
+            type="button"
+            className="speed-button"
+            onClick={() => updateSpeed(speed + 0.1)}
+            aria-label="Increase speed"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="speed-button"
+            onClick={() => updateSpeed(speed - 0.1)}
+            aria-label="Decrease speed"
+          >
+            –
+          </button>
+        </div>
+
+        <div className={`wave-shell ${showWaveform ? "visible" : "hidden"}`}>
+          <div
+            id="waveform"
+            ref={waveContainerRef}
+            className={`wave ${playbackState === "playing" ? "running" : "paused"}`}
+          />
+        </div>
+
+        <div ref={textZoneRef} className="text-zone" onMouseUp={onMouseUp}>
+          {words.map((word, index) => {
+            const min = Math.min(liveStart, liveEnd);
+            const max = Math.max(liveStart, liveEnd);
+            const isSelected = min >= 0 && index >= min && index <= max;
+
+            return (
+              <span
+                key={`${word}-${index}`}
+                className={`word ${isSelected ? "selected" : ""}`}
+                onMouseDown={() => onWordMouseDown(index)}
+                onMouseEnter={() => onWordMouseEnter(index)}
+              >
+                {word}{" "}
+              </span>
+            );
+          })}
+        </div>
+
+        {error && <p className="error">{error}</p>}
+      </section>
+    </main>
+  );
+}
