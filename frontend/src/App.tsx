@@ -294,7 +294,7 @@ export function App() {
           </div>
           <div className="brand-logo-panel">
             <img
-              src="/eleven-labs-banner.png"
+              src="/Eleven-labs-banner.png"
               alt="ElevenLabs banner"
               className="brand-logo"
             />
