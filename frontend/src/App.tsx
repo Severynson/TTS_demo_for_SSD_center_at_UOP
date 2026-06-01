@@ -5,6 +5,7 @@ type PlaybackState = "idle" | "loading" | "playing" | "paused";
 
 const TEXT_BLOCKS = [
   "This demo was prepared for the SSD Center at the University of the Pacific to explore a modern text-to-speech option. ElevenLabs could be a promising complement to the current Kurzweil workflow, especially for more natural voice quality and flexible scaling.",
+  "The service provided by ElevenLabs is API, so it can be integrated natively to any cross platform app or website like this, which took ~2 hours to make. In ranges of volunteering I'd be happy to build a small app which could be integrated with my.pacific.edu auth system, and allow students with disabilities use the app with reasonable built in daily/monthly limits, while allowing the app to fall back to a simpler free text-to-speach engine build in locally to the app.",
   "Pricing options:",
   "•  Pay As You Go API: around $0.05 per 1,000 characters for Flash/Turbo models, and around $0.10 per 1,000 characters for Multilingual v2/v3 models.",
   "•  Scale plan: $299/month, includes 1.8M credits (about 30 hours of TTS), plus team collaboration and professional voice-cloning features.",
@@ -40,7 +41,8 @@ export function App() {
   const hasSelection = selectedText.length > 0;
   const canPlay = hasSelection && playbackState !== "loading";
   const canStop = playbackState !== "idle" || hasSelection;
-  const showWaveform = playbackState === "playing" || playbackState === "paused";
+  const showWaveform =
+    playbackState === "playing" || playbackState === "paused";
 
   const stopAudio = (clearSelection: boolean) => {
     if (wavesurferRef.current) {
@@ -81,11 +83,14 @@ export function App() {
     setPlaybackState("loading");
 
     try {
-      const response = await fetch("https://backend-tts-demo-for-ssd-center.severyn.xyz/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
+      const response = await fetch(
+        "https://backend-tts-demo-for-ssd-center.severyn.xyz/api/tts",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        },
+      );
 
       if (!response.ok) {
         throw new Error(await response.text());
@@ -233,7 +238,9 @@ export function App() {
     });
 
     ws.on("pause", () => {
-      setPlaybackState((prev) => (prev === "idle" || prev === "loading" ? prev : "paused"));
+      setPlaybackState((prev) =>
+        prev === "idle" || prev === "loading" ? prev : "paused",
+      );
     });
 
     ws.on("play", () => {
