@@ -36,6 +36,7 @@ export function App() {
   const textZoneRef = useRef<HTMLDivElement | null>(null);
   const controlsRef = useRef<HTMLDivElement | null>(null);
   const selectionFinalizeTimerRef = useRef<number | null>(null);
+  const pointerActiveRef = useRef(false);
 
   const hasSelection = selectedText.length > 0;
   const canPlay = hasSelection && playbackState !== "loading";
@@ -162,43 +163,67 @@ export function App() {
   }, [speed]);
 
   useEffect(() => {
-    const finalizeSelection = () => {
+    const commitSelectionIfReady = () => {
+      if (pointerActiveRef.current) {
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        return;
+      }
+
+      const text = selection.toString().trim();
+      if (!text) {
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      if (!textZoneRef.current?.contains(range.commonAncestorContainer)) {
+        return;
+      }
+
+      setSelectedText((prev) => (prev === text ? prev : text));
+    };
+
+    const scheduleFinalize = () => {
       if (selectionFinalizeTimerRef.current !== null) {
         window.clearTimeout(selectionFinalizeTimerRef.current);
       }
 
-      // Let native selection settle after finger/mouse release.
       selectionFinalizeTimerRef.current = window.setTimeout(() => {
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) {
-          return;
-        }
-
-        const text = selection.toString().trim();
-        if (!text) {
-          return;
-        }
-
-        const range = selection.getRangeAt(0);
-        if (!textZoneRef.current?.contains(range.commonAncestorContainer)) {
-          return;
-        }
-
-        setSelectedText((prev) => (prev === text ? prev : text));
-      }, 80);
+        commitSelectionIfReady();
+      }, 120);
     };
 
-    document.addEventListener("pointerup", finalizeSelection);
-    document.addEventListener("mouseup", finalizeSelection);
-    document.addEventListener("touchend", finalizeSelection);
+    const onPointerDown = () => {
+      pointerActiveRef.current = true;
+    };
+
+    const onPointerUp = () => {
+      pointerActiveRef.current = false;
+      scheduleFinalize();
+    };
+
+    document.addEventListener("selectionchange", scheduleFinalize);
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("mouseup", onPointerUp);
+    document.addEventListener("touchend", onPointerUp);
 
     return () => {
       if (selectionFinalizeTimerRef.current !== null) {
         window.clearTimeout(selectionFinalizeTimerRef.current);
       }
-      document.removeEventListener("pointerup", finalizeSelection);
-      document.removeEventListener("mouseup", finalizeSelection);
-      document.removeEventListener("touchend", finalizeSelection);
+      document.removeEventListener("selectionchange", scheduleFinalize);
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("mouseup", onPointerUp);
+      document.removeEventListener("touchend", onPointerUp);
     };
   }, []);
 
