@@ -39,10 +39,39 @@ body,
   backdrop-filter: blur(4px);
 }
 
-.logo {
-  width: min(420px, 80%);
-  height: auto;
-  margin-bottom: 0.4rem;
+.brand-lockup {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 0;
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 0.8rem;
+  overflow: hidden;
+}
+
+.brand-photo-panel {
+  background: #fff;
+  padding: 0 0 0 0;
+  border-right: 14px solid #fff;
+}
+
+.brand-logo-panel {
+  background: #fff;
+  padding: 0;
+}
+
+.brand-photo,
+.brand-logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #0b0b0b;
+}
+
+.brand-logo {
+  object-fit: contain;
 }
 
 .eyebrow {
@@ -178,6 +207,15 @@ button:disabled {
 @media (max-width: 720px) {
   .hero-card {
     padding: 1.3rem;
+  }
+
+  .brand-lockup {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .brand-photo-panel {
+    border-right: 0;
   }
 
   .controls {

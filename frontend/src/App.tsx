@@ -22,6 +22,8 @@ export function App() {
   const wavesurferRef = useRef<WaveSurfer | null>(null);
   const waveContainerRef = useRef<HTMLDivElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const generatedBaseSpeedRef = useRef<number>(1);
+  const manualPlaybackFactorRef = useRef<number>(1);
   const requestTokenRef = useRef(0);
   const textZoneRef = useRef<HTMLDivElement | null>(null);
   const controlsRef = useRef<HTMLDivElement | null>(null);
@@ -67,12 +69,19 @@ export function App() {
   };
 
   const updateSpeed = (next: number) => {
-    const rounded = Number(next.toFixed(1));
-    const clamped = Math.min(2, Math.max(0.5, rounded));
-    setSpeed(clamped);
-    if (wavesurferRef.current) {
-      wavesurferRef.current.setPlaybackRate(clamped);
-    }
+    setSpeed(() => {
+      const rounded = Number(next.toFixed(1));
+      const targetSpeed = Math.min(2, Math.max(0.5, rounded));
+      const ws = wavesurferRef.current;
+
+      if (ws) {
+        const base = generatedBaseSpeedRef.current || 1;
+        manualPlaybackFactorRef.current = targetSpeed / base;
+        ws.setPlaybackRate(manualPlaybackFactorRef.current);
+      }
+
+      return targetSpeed;
+    });
   };
 
   const synthesizeAndPlay = async (text: string) => {
@@ -111,7 +120,9 @@ export function App() {
       if (token !== requestTokenRef.current) {
         return;
       }
-      wavesurferRef.current.setPlaybackRate(speed);
+      generatedBaseSpeedRef.current = 1;
+      manualPlaybackFactorRef.current = speed / generatedBaseSpeedRef.current;
+      wavesurferRef.current.setPlaybackRate(manualPlaybackFactorRef.current);
       await wavesurferRef.current.play();
 
       setPlaybackState("playing");
@@ -176,7 +187,9 @@ export function App() {
 
   useEffect(() => {
     if (wavesurferRef.current) {
-      wavesurferRef.current.setPlaybackRate(speed);
+      const base = generatedBaseSpeedRef.current || 1;
+      manualPlaybackFactorRef.current = speed / base;
+      wavesurferRef.current.setPlaybackRate(manualPlaybackFactorRef.current);
     }
   }, [speed]);
 
@@ -267,59 +280,72 @@ export function App() {
   return (
     <main className="page">
       <section className="hero-card">
-        <img
-          src="/Eleven-labs-banner.png"
-          alt="ElevenLabs banner"
-          className="logo"
-        />
+        <div className="brand-lockup">
+          <div className="brand-photo-panel">
+            <img
+              src="/mccaffrey-center.png"
+              alt="University of the Pacific campus scene"
+              className="brand-photo"
+            />
+          </div>
+          <div className="brand-logo-panel">
+            <img
+              src="/eleven-labs-banner.png"
+              alt="ElevenLabs banner"
+              className="brand-logo"
+            />
+          </div>
+        </div>
         <p className="eyebrow">ElevenLabs • Exploration page for SSD Center</p>
         <h1>Text-to-Speech Demo for SSD Center</h1>
         <p className="subtitle">
           Select text below. Playback starts automatically.
         </p>
 
-        <div className="controls" ref={controlsRef}>
-          <button
-            type="button"
-            onClick={() => void handlePlayPause()}
-            disabled={!canPlay}
-          >
-            {playbackState === "playing"
-              ? "❚❚ pause"
-              : playbackState === "loading"
-                ? "..."
-                : "► play"}
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            disabled={!canStop}
-            onClick={() => {
-              requestTokenRef.current += 1;
-              stopAudio(true);
-            }}
-          >
-            ◼ stop
-          </button>
-        </div>
-        <div className="speed-controls">
-          <span>speed: {speed.toFixed(1)}</span>
-          <button
-            type="button"
-            className="speed-button"
-            onClick={() => updateSpeed(speed + 0.1)}
-            aria-label="Increase speed"
-          >
-            +
-          </button>
-          <button
-            type="button"
-            className="speed-button"
-            onClick={() => updateSpeed(speed - 0.1)}
-            aria-label="Decrease speed"
-          >
-            –
-          </button>
+        <div ref={controlsRef}>
+          <div className="controls">
+            <button
+              type="button"
+              onClick={() => void handlePlayPause()}
+              disabled={!canPlay}
+            >
+              {playbackState === "playing"
+                ? "❚❚ pause"
+                : playbackState === "loading"
+                  ? "..."
+                  : "► play"}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={!canStop}
+              onClick={() => {
+                requestTokenRef.current += 1;
+                stopAudio(true);
+              }}
+            >
+              ◼ stop
+            </button>
+          </div>
+          <div className="speed-controls">
+            <span>speed: {speed.toFixed(1)}</span>
+            <button
+              type="button"
+              className="speed-button"
+              onClick={() => updateSpeed(speed + 0.1)}
+              aria-label="Increase speed"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="speed-button"
+              onClick={() => updateSpeed(speed - 0.1)}
+              aria-label="Decrease speed"
+            >
+              –
+            </button>
+          </div>
         </div>
 
         <div className={`wave-shell ${showWaveform ? "visible" : "hidden"}`}>
