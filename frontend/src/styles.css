@@ -187,6 +187,28 @@ button:disabled {
   cursor: text;
 }
 
+.text-line {
+  margin: 0 0 0.6rem;
+  overflow-wrap: anywhere;
+}
+
+.text-line:last-child {
+  margin-bottom: 0;
+}
+
+.text-bullet {
+  position: relative;
+  padding-left: 1.05rem;
+}
+
+.bullet-dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #f2f2f2;
+  line-height: 1.7;
+}
+
 .word {
   border-radius: 0.35rem;
   transition: background-color 140ms ease;

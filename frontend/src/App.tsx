@@ -3,14 +3,37 @@ import WaveSurfer from "wavesurfer.js";
 
 type PlaybackState = "idle" | "loading" | "playing" | "paused";
 
-const DEMO_TEXT = `This demo was prepared for the SSD Center at the University of the Pacific to explore a modern text-to-speech option. ElevenLabs may be a practical complement to the current Kurzweil workflow, especially if you want more natural voices and flexible scaling over time.
-
-As a pricing reference, Pay As You Go API rates are around $0.05 per 1,000 characters for Flash and Turbo models, and around $0.10 per 1,000 characters for Multilingual v2/v3 models. The Scale plan is listed at $299 per month with 1.8 million credits, roughly 30 hours of TTS, plus collaboration features. The Business plan is listed at $990 per month with 6 million credits, around 100 hours of TTS, plus expanded low-latency and voice-cloning capabilities.
-
-Goal of this page is simple: select any part of this text, listen instantly, and evaluate whether this approach could be a promising option for SSD Center needs.`;
+const TEXT_BLOCKS = [
+  "This demo was prepared for the SSD Center at the University of the Pacific to explore a modern text-to-speech option. ElevenLabs could be a promising complement to the current Kurzweil workflow, especially for more natural voice quality and flexible scaling.",
+  "Pricing snapshot:",
+  "•  Pay As You Go API: around $0.05 per 1,000 characters for Flash/Turbo models, and around $0.10 per 1,000 characters for Multilingual v2/v3 models.",
+  "•  Scale plan: $299/month, includes 1.8M credits (about 30 hours of TTS), plus team collaboration and professional voice-cloning features.",
+  "•  Business plan: $990/month, includes 6M credits (about 100 hours of TTS), plus low-latency TTS and expanded business features.",
+  "•  Enterprise plan: custom, negotiable pricing for large organizations like universities, with scope tailored to institutional needs.",
+  "Goal of this page is simple: select any part of this text, listen instantly, and evaluate whether this could be a strong option for SSD Center services.",
+];
 
 export function App() {
-  const words = useMemo(() => DEMO_TEXT.split(/\s+/).filter(Boolean), []);
+  const lines = useMemo(() => {
+    let globalIndex = 0;
+    return TEXT_BLOCKS.map((line) => {
+      const isBullet = line.startsWith("• ");
+      const words = line
+        .replace(/^•\s*/, "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((word) => {
+          const token = { text: word, index: globalIndex };
+          globalIndex += 1;
+          return token;
+        });
+      return { isBullet, words };
+    });
+  }, []);
+  const words = useMemo(
+    () => lines.flatMap((line) => line.words.map((word) => word.text)),
+    [lines],
+  );
   const [selectionStart, setSelectionStart] = useState<number | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
   const [dragStart, setDragStart] = useState<number | null>(null);
@@ -357,22 +380,31 @@ export function App() {
         </div>
 
         <div ref={textZoneRef} className="text-zone" onMouseUp={onMouseUp}>
-          {words.map((word, index) => {
-            const min = Math.min(liveStart, liveEnd);
-            const max = Math.max(liveStart, liveEnd);
-            const isSelected = min >= 0 && index >= min && index <= max;
+          {lines.map((line, lineIndex) => (
+            <p
+              key={`line-${lineIndex}`}
+              className={line.isBullet ? "text-line text-bullet" : "text-line"}
+            >
+              {line.isBullet && <span className="bullet-dot">•</span>}
+              {line.words.map((word) => {
+                const index = word.index;
+                const min = Math.min(liveStart, liveEnd);
+                const max = Math.max(liveStart, liveEnd);
+                const isSelected = min >= 0 && index >= min && index <= max;
 
-            return (
-              <span
-                key={`${word}-${index}`}
-                className={`word ${isSelected ? "selected" : ""}`}
-                onMouseDown={() => onWordMouseDown(index)}
-                onMouseEnter={() => onWordMouseEnter(index)}
-              >
-                {word}{" "}
-              </span>
-            );
-          })}
+                return (
+                  <span
+                    key={`${lineIndex}-${index}-${word.text}`}
+                    className={`word ${isSelected ? "selected" : ""}`}
+                    onMouseDown={() => onWordMouseDown(index)}
+                    onMouseEnter={() => onWordMouseEnter(index)}
+                  >
+                    {word.text}{" "}
+                  </span>
+                );
+              })}
+            </p>
+          ))}
         </div>
 
         {error && <p className="error">{error}</p>}
