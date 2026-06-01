@@ -114,7 +114,7 @@ export function App() {
     setPlaybackState("loading");
 
     try {
-      const response = await fetch("/api/tts", {
+      const response = await fetch("https://backend-tts-demo-for-ssd-center.severyn.xyz/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
@@ -313,7 +313,7 @@ export function App() {
           </div>
           <div className="brand-logo-panel">
             <img
-              src="/eleven-labs-banner.png"
+              src="/Eleven-labs-banner.png"
               alt="ElevenLabs banner"
               className="brand-logo"
             />
